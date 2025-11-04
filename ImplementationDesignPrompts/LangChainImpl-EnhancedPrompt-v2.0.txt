@@ -1,0 +1,88 @@
+Using the given prompt, implement both front & back end using LangChain & Typescript. 
+Enable the respective implementation in UI with sidebar menu name - "Userstory - RAG pipeline search"
+I — Intent (goal)
+You are implementing a LangChain-based hybrid retrieval pipeline for user stories stored in MongoDB Atlas. 
+The pipeline must: accept one new user story, normalize it, embed it with the same Mistral model used at ingestion, 
+run both vector (semantic) and BM25/text retrievals against the rag_userstories.stories collection (index vector_index_stories, 
+field embedding), compute a hybrid score using flow-level VECTOR_WEIGHT and BM25_WEIGHT, deduplicate and rank results, 
+and return the top 5–6 relevant stories plus quality/refined outputs for the input story.
+
+C — Constraints
+
+Use the existing Mistral embedding component (mistral-embed).
+
+Use MongoDB Atlas Search for both knnBeta vector searches and text BM25-like searches.
+
+Flow-level parameters VECTOR_WEIGHT and BM25_WEIGHT must be accepted and normalized (if they do not sum to 1).
+
+Normalize raw retrieval scores to [0,1] (min-max or safe fallback) before hybrid scoring.
+
+Deduplicate by a stable key (document _id or SHA256(content)).
+
+Provide clear structured errors on missing secrets, API failures, or DB connection issues.
+
+Do not change existing ingestion schema or index names (use vector_index_stories and embedding unless explicitly overridden).
+
+Keep all outputs traceable and explainable.
+
+E — Examples (input → expected output)
+Example Input:
+
+"As a product manager, I want a report export so that stakeholders can download monthly metrics. Acceptance Criteria: 1) CSV export 2) Include filters"
+
+
+Expected Outputs (summary):
+
+normalized_new_story: "As a product manager, I want a report export so that stakeholders can download monthly metrics. Acceptance Criteria: CSV export; Include filters."
+
+ranked_related_stories: list of top 5 stories each with {_id, content, metadata, vector_score, bm25_score, vector_score_norm, bm25_score_norm, hybrid_score} sorted desc.
+
+story_quality_score: 0–100 numeric score (clarity & completeness heuristics).
+
+refined_story: polished user-story in "As a..., I want..., so that..." format.
+
+P — Persona
+Act as an AI Full-Stack Engineer with expertise in LangChain, LangFlow, Mistral embeddings, and MongoDB Atlas.
+ Be constructive, analytical, and produce production-ready TypeScript code snippets that include error handling and config-driven behavior.
+
+O — Outputs (exact structured schema)
+Return (JSON):
+
+{
+  "normalized_new_story": string,
+  "refined_story": string | null,
+  "story_quality_score": number,   // 0..100
+  "ranked_related_stories": [
+    {
+      "_id": string,
+      "content": string,
+      "metadata": object,
+      "vector_score": number,
+      "bm25_score": number,
+      "vector_score_norm": number,
+      "bm25_score_norm": number,
+      "hybrid_score": number
+    },
+    ...
+  ],
+  "errors": [] | [{code: string, message: string, details?: object}]
+}
+
+
+T — Tools / environment / hints
+
+Embeddings: use Mistral mistral-embed (same config as MistalAIEmbeddings node in flow). 
+
+New Flow (2)
+
+MongoDB: cluster URI, db_name = rag_userstories, collection_name = stories, index_name = vector_index_stories, index_field = embedding.
+
+Retrieval strategies:
+
+Vector: $search with knnBeta (Atlas).
+
+Text: $search with text operator (Atlas).
+
+Expose VECTOR_WEIGHT and BM25_WEIGHT in the LangFlow node config or environment variables; validate and normalize them in code.
+
+For refinement: optionally call your LLM (or LangChain LLM wrapper) with a short rewrite prompt: "Rewrite the following user story to follow 'As a <role>, I want <action> so that <value>' and make it testable."
